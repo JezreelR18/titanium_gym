@@ -163,7 +163,7 @@ class RoutineMemberResponse(BaseModel):
 @router.get("/muscle-groups", response_model=list[MuscleGroupResponse])
 async def list_muscle_groups(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     result = await db.execute(select(MuscleGroup).order_by(MuscleGroup.name))
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 
 @router.post("/muscle-groups", response_model=MuscleGroupResponse, status_code=status.HTTP_201_CREATED)
@@ -214,7 +214,7 @@ async def list_exercises(db: AsyncSession = Depends(get_db), _=Depends(get_curre
     result = await db.execute(
         select(Exercise).options(selectinload(Exercise.muscle_group)).order_by(Exercise.name)
     )
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 
 @router.post("/exercises", response_model=ExerciseResponse, status_code=status.HTTP_201_CREATED)
@@ -270,7 +270,7 @@ async def list_routines(db: AsyncSession = Depends(get_db), _=Depends(get_curren
         .where(Routine.is_active == True)
         .order_by(Routine.created_at.desc())
     )
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 
 @router.post("/routines", response_model=RoutineResponse, status_code=status.HTTP_201_CREATED)
@@ -390,7 +390,7 @@ async def get_member_routines(member_id: uuid.UUID, db: AsyncSession = Depends(g
         .where(MemberRoutine.member_id == member_id)
         .order_by(MemberRoutine.assigned_at.desc())
     )
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 
 @router.put("/member-routines/{mr_id}", response_model=MemberRoutineResponse)
