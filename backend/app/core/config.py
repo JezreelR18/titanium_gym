@@ -22,6 +22,17 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: List[str] = ["http://localhost:5173"]
 
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("["):
+                import json
+                return json.loads(v)
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
+
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def fix_db_url(cls, v: str) -> str:
