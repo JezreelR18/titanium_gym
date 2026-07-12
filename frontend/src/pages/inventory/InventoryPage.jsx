@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../../context/AuthContext";
 import { inventoryService } from "../../services/inventoryService";
 import {
   Search, Plus, Pencil, PackagePlus, AlertTriangle,
@@ -49,6 +50,8 @@ function StockBadge({ stock, min }) {
 
 function ProductsTab() {
   const queryClient = useQueryClient();
+  const { user, hasPermission } = useAuth();
+  const canManage = ["propietario", "administrador"].includes(user?.role?.name) || hasPermission("inventory.manage");
   const [search, setSearch] = useState("");
   const [page, setPage]     = useState(1);
   const [lowStock, setLowStock] = useState(false);
@@ -134,13 +137,15 @@ function ProductsTab() {
               Precio: Number(p.price).toFixed(2), Stock: p.stock, Estado: p.is_active ? "Activo" : "Inactivo",
             })), null, "inventario")}
           />
-          <button
-            className="btn-primary flex items-center gap-2"
-            onClick={() => setModal({ mode: "create" })}
-          >
-            <Plus size={16} />
-            Nuevo producto
-          </button>
+          {canManage && (
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => setModal({ mode: "create" })}
+            >
+              <Plus size={16} />
+              Nuevo producto
+            </button>
+          )}
         </div>
       </div>
 
@@ -162,7 +167,7 @@ function ProductsTab() {
                 <th className="text-left">Precio</th>
                 <th className="text-left">Stock</th>
                 <th className="text-left">Estado</th>
-                <th className="text-right">Acciones</th>
+                {canManage && <th className="text-right">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -203,31 +208,33 @@ function ProductsTab() {
                       {p.is_active ? "Activo" : "Inactivo"}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setMovementProduct(p)}
-                        title="Agregar stock"
-                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      >
-                        <PackagePlus size={14} />
-                      </button>
-                      <button
-                        onClick={() => setModal({ mode: "edit", product: p })}
-                        title="Editar"
-                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => toggleActive.mutate({ id: p.id, is_active: p.is_active })}
-                        title={p.is_active ? "Desactivar" : "Activar"}
-                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                      >
-                        {p.is_active ? <X size={14} /> : <Check size={14} />}
-                      </button>
-                    </div>
-                  </td>
+                  {canManage && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setMovementProduct(p)}
+                          title="Agregar stock"
+                          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                        >
+                          <PackagePlus size={14} />
+                        </button>
+                        <button
+                          onClick={() => setModal({ mode: "edit", product: p })}
+                          title="Editar"
+                          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => toggleActive.mutate({ id: p.id, is_active: p.is_active })}
+                          title={p.is_active ? "Desactivar" : "Activar"}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        >
+                          {p.is_active ? <X size={14} /> : <Check size={14} />}
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -265,6 +272,8 @@ function ProductsTab() {
 
 function CategoriesTab() {
   const queryClient = useQueryClient();
+  const { user, hasPermission } = useAuth();
+  const canManage = ["propietario", "administrador"].includes(user?.role?.name) || hasPermission("inventory.manage");
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName]   = useState("");
   const [editDesc, setEditDesc]   = useState("");
@@ -316,17 +325,19 @@ function CategoriesTab() {
     <div className="max-w-xl">
       <div className="flex items-center justify-between mb-5">
         <p className="text-sm text-gray-500">{categories.length} categorías</p>
-        <button
-          onClick={() => setCreating(true)}
-          className="btn-primary flex items-center gap-2 text-sm"
-        >
-          <Plus size={15} />
-          Nueva categoría
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setCreating(true)}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Plus size={15} />
+            Nueva categoría
+          </button>
+        )}
       </div>
 
       {/* New category form */}
-      {creating && (
+      {canManage && creating && (
         <div className="card mb-4 border-brand-200">
           <p className="text-sm font-semibold mb-3 text-gray-800">Nueva categoría</p>
           <div className="space-y-3">
@@ -398,17 +409,19 @@ function CategoriesTab() {
                   <p className="font-medium text-gray-800">{cat.name}</p>
                   {cat.description && <p className="text-xs text-gray-400 mt-0.5">{cat.description}</p>}
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => startEdit(cat)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => confirm(`¿Eliminar "${cat.name}"?`) && deleteMutation.mutate(cat.id)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => startEdit(cat)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => confirm(`¿Eliminar "${cat.name}"?`) && deleteMutation.mutate(cat.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           )}
