@@ -30,6 +30,7 @@ class CashClosing(Base):
     # JSON snapshot: [{method: str, display_name: str, count: int, amount: float}]
     payment_breakdown = Column(Text, nullable=False, default="[]")
 
+    opening_amount = Column(Numeric(12, 2), nullable=False, default=0)
     cash_sales_amount = Column(Numeric(12, 2), nullable=False, default=0)
     cash_counted_amount = Column(Numeric(12, 2), nullable=False, default=0)
     difference = Column(Numeric(12, 2), nullable=False, default=0)

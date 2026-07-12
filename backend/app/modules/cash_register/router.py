@@ -55,6 +55,7 @@ class SalesSummary(BaseModel):
     cash_sales_amount: Decimal
     payment_breakdown: list[PaymentBreakdownItem]
     existing_closing: Optional[dict] = None
+    opening_amount: Decimal = Decimal("0")
 
 
 class DenominationIn(BaseModel):
@@ -65,6 +66,7 @@ class DenominationIn(BaseModel):
 
 class ClosingCreate(BaseModel):
     closing_date: date
+    opening_amount: Decimal = Decimal("0")
     denominations: list[DenominationIn]
     notes: Optional[str] = None
 
@@ -87,6 +89,7 @@ class ClosingOut(BaseModel):
     total_sales_count: int
     total_sales_amount: Decimal
     payment_breakdown: list[PaymentBreakdownItem]
+    opening_amount: Decimal
     cash_sales_amount: Decimal
     cash_counted_amount: Decimal
     difference: Decimal
@@ -175,6 +178,7 @@ def _closing_to_out(closing: CashClosing) -> ClosingOut:
         total_sales_count=closing.total_sales_count,
         total_sales_amount=closing.total_sales_amount,
         payment_breakdown=_deserialize_breakdown(closing.payment_breakdown),
+        opening_amount=closing.opening_amount,
         cash_sales_amount=closing.cash_sales_amount,
         cash_counted_amount=closing.cash_counted_amount,
         difference=closing.difference,
@@ -219,6 +223,8 @@ async def get_summary(
     if existing:
         existing_dict = _closing_to_out(existing).model_dump(mode="json")
 
+    opening_amount = Decimal(str(existing.opening_amount)) if existing else Decimal("0")
+
     return SalesSummary(
         closing_date=target_date,
         total_sales_count=count,
@@ -226,6 +232,7 @@ async def get_summary(
         cash_sales_amount=cash_total,
         payment_breakdown=breakdown,
         existing_closing=existing_dict,
+        opening_amount=opening_amount,
     )
 
 
@@ -284,11 +291,13 @@ async def create_or_update_closing(
 
     # Calculate cash counted from denominations
     cash_counted = sum(Decimal(str(d.denomination)) * d.quantity for d in body.denominations)
-    difference = cash_counted - cash_total
+    # difference: contado vs (fondo inicial + ventas en efectivo)
+    difference = cash_counted - (body.opening_amount + cash_total)
 
     if existing:
         # Update existing draft
         closing = existing
+        closing.opening_amount = body.opening_amount
         closing.total_sales_count = count
         closing.total_sales_amount = total
         closing.payment_breakdown = _serialize_breakdown(breakdown)
@@ -305,6 +314,7 @@ async def create_or_update_closing(
         closing = CashClosing(
             closing_date=body.closing_date,
             status=ClosingStatus.draft,
+            opening_amount=body.opening_amount,
             total_sales_count=count,
             total_sales_amount=total,
             payment_breakdown=_serialize_breakdown(breakdown),

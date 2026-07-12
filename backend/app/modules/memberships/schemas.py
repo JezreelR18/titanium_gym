@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
 from app.shared.enums import MembershipStatus
 
@@ -54,6 +54,16 @@ class MembershipAssign(BaseModel):
     discount_pct: Decimal = Decimal("0")
     auto_renew: bool = False
     note: Optional[str] = None
+    # Payment fields
+    paid_amount: Decimal = Decimal("0")
+    payment_method_id: Optional[uuid.UUID] = None
+    reference_code: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_payment_method_required(self) -> "MembershipAssign":
+        if self.paid_amount > 0 and not self.payment_method_id:
+            raise ValueError("payment_method_id es requerido cuando paid_amount > 0")
+        return self
 
 
 class MembershipUpdate(BaseModel):
