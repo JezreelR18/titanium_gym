@@ -107,16 +107,16 @@ class InventoryRepository:
         product = Product(**data.model_dump(), created_by=created_by)
         self.db.add(product)
         await self.db.commit()
-        await self.db.refresh(product)
-        return product
+        result = await self.db.execute(select(Product).where(Product.id == product.id))
+        return result.scalar_one()
 
     async def update_product(self, product: Product, data: ProductUpdate, updated_by: uuid.UUID) -> Product:
         for field, value in data.model_dump(exclude_none=True).items():
             setattr(product, field, value)
         product.updated_by = updated_by
         await self.db.commit()
-        await self.db.refresh(product)
-        return product
+        result = await self.db.execute(select(Product).where(Product.id == product.id))
+        return result.scalar_one()
 
     async def apply_movement(self, product: Product, data: MovementCreate, created_by: uuid.UUID) -> InventoryMovement:
         qty = abs(data.quantity)
