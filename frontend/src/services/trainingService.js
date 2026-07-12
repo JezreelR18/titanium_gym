@@ -17,6 +17,7 @@ export const trainingService = {
   addExerciseToRoutine: (routineId, data) => api.post(`/training/routines/${routineId}/exercises`, data).then((r) => r.data),
   removeExerciseFromRoutine: (reId) => api.delete(`/training/routine-exercises/${reId}`),
 
+  getRoutineMembers: (routineId) => api.get(`/training/routine/${routineId}/members`).then((r) => r.data),
   assignRoutine: (data) => api.post("/training/assign", data).then((r) => r.data),
   getMemberRoutines: (memberId) => api.get(`/training/member/${memberId}`).then((r) => r.data),
   updateMemberRoutine: (id, data) => api.put(`/training/member-routines/${id}`, data).then((r) => r.data),

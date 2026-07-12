@@ -146,6 +146,18 @@ class MemberRoutineUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class RoutineMemberResponse(BaseModel):
+    assignment_id: uuid.UUID
+    member_id: uuid.UUID
+    member_code: str
+    first_name: str
+    last_name: str
+    status: RoutineStatus
+    assigned_at: datetime
+    ends_at: Optional[date] = None
+    note: Optional[str] = None
+
+
 # ── Muscle groups ──────────────────────────────────────────────
 
 @router.get("/muscle-groups", response_model=list[MuscleGroupResponse])
@@ -310,6 +322,31 @@ async def remove_exercise_from_routine(re_id: uuid.UUID, db: AsyncSession = Depe
         raise HTTPException(status_code=404, detail="No encontrado")
     await db.delete(re)
     await db.commit()
+
+
+# ── Routine → assigned members ────────────────────────────────
+
+@router.get("/routine/{routine_id}/members", response_model=list[RoutineMemberResponse])
+async def get_routine_members(routine_id: uuid.UUID, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    from app.modules.members.models import Member
+    result = await db.execute(
+        select(
+            MemberRoutine.id.label("assignment_id"),
+            MemberRoutine.member_id,
+            Member.member_code,
+            Member.first_name,
+            Member.last_name,
+            MemberRoutine.status,
+            MemberRoutine.assigned_at,
+            MemberRoutine.ends_at,
+            MemberRoutine.note,
+        )
+        .join(Member, Member.id == MemberRoutine.member_id)
+        .where(MemberRoutine.routine_id == routine_id)
+        .order_by(MemberRoutine.assigned_at.desc())
+    )
+    rows = result.mappings().all()
+    return [RoutineMemberResponse(**dict(r)) for r in rows]
 
 
 # ── Member assignments ─────────────────────────────────────────

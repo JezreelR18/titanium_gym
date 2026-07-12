@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trainingService } from "../../services/trainingService";
 import { memberService } from "../../services/memberService";
 import { useAuth } from "../../context/AuthContext";
-import { Plus, Pencil, Dumbbell, Search, X, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Plus, Pencil, Dumbbell, Search, X, ChevronDown, ChevronUp, Trash2, Users } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 import ExerciseModal from "./ExerciseModal";
@@ -75,9 +75,10 @@ function ExercisesTab() {
 
 // ── Routines Tab ───────────────────────────────────────────────
 function RoutinesTab() {
-  const [modal, setModal]         = useState(null);
-  const [expanded, setExpanded]   = useState(null);
+  const [modal, setModal]           = useState(null);
+  const [expanded, setExpanded]     = useState(null);
   const [showAssign, setShowAssign] = useState(null);
+  const [showMembers, setShowMembers] = useState(null);
 
   const { data: routines = [], isLoading } = useQuery({ queryKey: ["routines"], queryFn: trainingService.getRoutines });
 
@@ -119,6 +120,10 @@ function RoutinesTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => setShowMembers(r)}
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1">
+                    <Users size={13} /> Asignados
+                  </button>
                   <button onClick={() => setShowAssign(r)}
                     className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-200 transition-colors">
                     Asignar
@@ -165,6 +170,72 @@ function RoutinesTab() {
 
       {modal && <RoutineModal mode={modal.mode} routine={modal.routine} onClose={() => setModal(null)} />}
       {showAssign && <AssignRoutineModal routine={showAssign} onClose={() => setShowAssign(null)} />}
+      {showMembers && <RoutineMembersModal routine={showMembers} onClose={() => setShowMembers(null)} />}
+    </div>
+  );
+}
+
+// ── Routine members modal ──────────────────────────────────────
+function RoutineMembersModal({ routine, onClose }) {
+  const { data: assignments = [], isLoading } = useQuery({
+    queryKey: ["routine-members", routine.id],
+    queryFn: () => trainingService.getRoutineMembers(routine.id),
+  });
+
+  const STATUS_LABEL = { active: "Activa", completed: "Completada", paused: "Pausada", cancelled: "Cancelada" };
+  const STATUS_COLOR = { active: "bg-green-100 text-green-700", completed: "bg-gray-100 text-gray-500", paused: "bg-amber-100 text-amber-700", cancelled: "bg-red-100 text-red-700" };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-semibold">Miembros asignados</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{routine.name}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4">
+          {isLoading ? (
+            <p className="text-center py-10 text-sm text-gray-400">Cargando...</p>
+          ) : assignments.length === 0 ? (
+            <div className="text-center py-10">
+              <Users size={40} className="text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">Ningún miembro tiene esta rutina asignada.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignments.map((a) => (
+                <div key={a.assignment_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-xs font-semibold text-brand-700 shrink-0">
+                      {a.first_name[0]}{a.last_name[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{a.first_name} {a.last_name}</p>
+                      <p className="text-xs text-brand-600 font-mono">{a.member_code}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLOR[a.status])}>
+                      {STATUS_LABEL[a.status] ?? a.status}
+                    </span>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(a.assigned_at).toLocaleDateString("es-MX")}
+                      {a.ends_at && ` → ${new Date(a.ends_at).toLocaleDateString("es-MX")}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="btn-secondary">Cerrar</button>
+        </div>
+      </div>
     </div>
   );
 }

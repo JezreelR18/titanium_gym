@@ -1,12 +1,80 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { memberService } from "../../services/memberService";
-import { Search, Plus, Pencil, Trash2, UserCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { trainingService } from "../../services/trainingService";
+import { Search, Plus, Pencil, Trash2, UserCircle, ChevronLeft, ChevronRight, Dumbbell, X } from "lucide-react";
 import toast from "react-hot-toast";
 import MemberModal from "./MemberModal";
 import clsx from "clsx";
 import ExportButton from "../../components/ui/ExportButton";
 import { exportCSV, exportExcel } from "../../utils/exportUtils";
+
+const ROUTINE_STATUS_LABEL = { active: "Activa", completed: "Completada", paused: "Pausada", cancelled: "Cancelada" };
+const ROUTINE_STATUS_COLOR = { active: "bg-green-100 text-green-700", completed: "bg-gray-100 text-gray-500", paused: "bg-amber-100 text-amber-700", cancelled: "bg-red-100 text-red-700" };
+const DIFFICULTY_LABELS = { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" };
+
+function MemberRoutinesModal({ member, onClose }) {
+  const { data: assignments = [], isLoading } = useQuery({
+    queryKey: ["member-routines", member.id],
+    queryFn: () => trainingService.getMemberRoutines(member.id),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-semibold">Rutinas asignadas</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{member.first_name} {member.last_name} · {member.member_code}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100"><X size={18} /></button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4">
+          {isLoading ? (
+            <p className="text-center py-10 text-sm text-gray-400">Cargando...</p>
+          ) : assignments.length === 0 ? (
+            <div className="text-center py-10">
+              <Dumbbell size={40} className="text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">Este miembro no tiene rutinas asignadas.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {assignments.map((a) => (
+                <div key={a.id} className="p-3 bg-gray-50 rounded-xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm">{a.routine?.name}</p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {a.routine?.goal && <span className="text-xs text-gray-400">🎯 {a.routine.goal}</span>}
+                        {a.routine?.difficulty && <span className="text-xs text-gray-400">{DIFFICULTY_LABELS[a.routine.difficulty]}</span>}
+                        {a.routine?.exercises?.length > 0 && <span className="text-xs text-gray-400">💪 {a.routine.exercises.length} ejercicios</span>}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium", ROUTINE_STATUS_COLOR[a.status])}>
+                        {ROUTINE_STATUS_LABEL[a.status] ?? a.status}
+                      </span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Desde {new Date(a.assigned_at).toLocaleDateString("es-MX")}
+                        {a.ends_at && ` hasta ${new Date(a.ends_at).toLocaleDateString("es-MX")}`}
+                      </p>
+                    </div>
+                  </div>
+                  {a.note && <p className="text-xs text-gray-400 italic mt-1.5">{a.note}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="btn-secondary">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const STATUS_COLORS = {
   active:    "bg-green-100 text-green-700",
@@ -35,9 +103,10 @@ function buildExportRows(members) {
 
 export default function MembersList() {
   const queryClient = useQueryClient();
-  const [search, setSearch]   = useState("");
-  const [page, setPage]       = useState(1);
-  const [modal, setModal]     = useState(null);
+  const [search, setSearch]       = useState("");
+  const [page, setPage]           = useState(1);
+  const [modal, setModal]         = useState(null);
+  const [routinesModal, setRoutinesModal] = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["members", page, search],
@@ -164,6 +233,13 @@ export default function MembersList() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => setRoutinesModal(m)}
+                          title="Ver rutinas"
+                          className="p-1.5 text-gray-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                        >
+                          <Dumbbell size={14} />
+                        </button>
+                        <button
                           onClick={() => setModal({ mode: "edit", member: m })}
                           className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                         >
@@ -213,6 +289,9 @@ export default function MembersList() {
           member={modal.member}
           onClose={() => setModal(null)}
         />
+      )}
+      {routinesModal && (
+        <MemberRoutinesModal member={routinesModal} onClose={() => setRoutinesModal(null)} />
       )}
     </div>
   );
