@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -125,7 +125,7 @@ class MemberRoutineResponse(BaseModel):
     routine: RoutineResponse
     status: RoutineStatus
     note: Optional[str] = None
-    assigned_at: date
+    assigned_at: datetime
     ends_at: Optional[date] = None
     model_config = {"from_attributes": True}
 
