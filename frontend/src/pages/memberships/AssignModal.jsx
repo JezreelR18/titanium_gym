@@ -2,28 +2,46 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { membershipService } from "../../services/membershipService";
 import { memberService } from "../../services/memberService";
-import { X, Search } from "lucide-react";
+import { salesService } from "../../services/salesService";
+import { X, Search, CreditCard, Banknote, Clock } from "lucide-react";
 import toast from "react-hot-toast";
 
 function fmt(n) {
   return Number(n).toLocaleString("es-MX", { minimumFractionDigits: 2 });
 }
 
+const PAYMENT_TYPE_OPTIONS = [
+  { value: "full",    label: "Pago completo", icon: CreditCard },
+  { value: "partial", label: "Abono",         icon: Banknote   },
+  { value: "none",    label: "Sin pago",      icon: Clock      },
+];
+
 export default function AssignModal({ onClose }) {
   const queryClient = useQueryClient();
 
-  const [memberSearch, setMemberSearch] = useState("");
+  const [memberSearch, setMemberSearch]   = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberResults, setMemberResults] = useState([]);
-  const [planId, setPlanId] = useState("");
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
-  const [discountPct, setDiscountPct] = useState("0");
-  const [autoRenew, setAutoRenew] = useState(false);
-  const [note, setNote] = useState("");
+  const [planId, setPlanId]               = useState("");
+  const [startDate, setStartDate]         = useState(new Date().toISOString().slice(0, 10));
+  const [discountPct, setDiscountPct]     = useState("0");
+  const [autoRenew, setAutoRenew]         = useState(false);
+  const [note, setNote]                   = useState("");
+
+  // Payment
+  const [paymentType, setPaymentType]         = useState("full");
+  const [paidAmount, setPaidAmount]           = useState("");
+  const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [referenceCode, setReferenceCode]     = useState("");
 
   const { data: plans = [] } = useQuery({
     queryKey: ["membership-plans"],
     queryFn: () => membershipService.getPlans({ active_only: true }),
+  });
+
+  const { data: paymentMethods = [] } = useQuery({
+    queryKey: ["payment-methods"],
+    queryFn: () => salesService.getPaymentMethods(),
   });
 
   const { data: memberData } = useQuery({
@@ -38,19 +56,36 @@ export default function AssignModal({ onClose }) {
   }, [memberData]);
 
   const selectedPlan = plans.find((p) => p.id === planId);
-  const discount = Number(discountPct) || 0;
-  const finalPrice = selectedPlan ? selectedPlan.price * (1 - discount / 100) : null;
+  const discount     = Number(discountPct) || 0;
+  const finalPrice   = selectedPlan ? selectedPlan.price * (1 - discount / 100) : null;
+
+  // Keep paidAmount in sync when switching to "full"
+  useEffect(() => {
+    if (paymentType === "full" && finalPrice != null) {
+      setPaidAmount(finalPrice.toFixed(2));
+    } else if (paymentType === "none") {
+      setPaidAmount("0");
+    }
+  }, [paymentType, finalPrice]);
+
+  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId);
+  const isTransfer = selectedMethod?.name === "bank_transfer";
 
   const mutation = useMutation({
-    mutationFn: () =>
-      membershipService.assign({
-        member_id: selectedMember.id,
-        plan_id: planId,
-        start_date: startDate,
-        discount_pct: discount,
-        auto_renew: autoRenew,
-        note: note || null,
-      }),
+    mutationFn: () => {
+      const paid = paymentType === "none" ? 0 : Number(paidAmount) || 0;
+      return membershipService.assign({
+        member_id:         selectedMember.id,
+        plan_id:           planId,
+        start_date:        startDate,
+        discount_pct:      discount,
+        auto_renew:        autoRenew,
+        note:              note || null,
+        paid_amount:       paid,
+        payment_method_id: paymentType !== "none" && paymentMethodId ? paymentMethodId : null,
+        reference_code:    referenceCode || null,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memberships"] });
       toast.success("¡Membresía asignada!");
@@ -65,9 +100,21 @@ export default function AssignModal({ onClose }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!selectedMember) { toast.error("Selecciona un miembro"); return; }
-    if (!planId) { toast.error("Selecciona un plan"); return; }
+    if (!planId)          { toast.error("Selecciona un plan");   return; }
+    if (paymentType !== "none" && !paymentMethodId) {
+      toast.error("Selecciona el método de pago"); return;
+    }
+    if (paymentType === "partial") {
+      const amt = Number(paidAmount);
+      if (!amt || amt <= 0)           { toast.error("Ingresa el monto del abono"); return; }
+      if (amt >= Number(finalPrice))  { toast.error("El abono debe ser menor al precio total; usa 'Pago completo' si cubre todo"); return; }
+    }
     mutation.mutate();
   }
+
+  const remaining = finalPrice != null && paymentType !== "none"
+    ? Math.max(0, finalPrice - (Number(paidAmount) || 0))
+    : null;
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -171,6 +218,98 @@ export default function AssignModal({ onClose }) {
               <span className="font-bold text-brand-700 text-base">${fmt(finalPrice)} {selectedPlan.currency}</span>
             </div>
           )}
+
+          {/* ── Payment section ── */}
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <label className="label">Pago</label>
+            <div className="grid grid-cols-3 gap-2">
+              {PAYMENT_TYPE_OPTIONS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPaymentType(value)}
+                  className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-xs font-medium transition-all ${
+                    paymentType === value
+                      ? "border-brand-500 bg-brand-50 text-brand-700"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  <Icon size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {paymentType !== "none" && (
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Método de pago *</label>
+                  <select
+                    value={paymentMethodId}
+                    onChange={(e) => setPaymentMethodId(e.target.value)}
+                    className="input"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {paymentMethods.map((m) => (
+                      <option key={m.id} value={m.id}>{m.description ?? m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {paymentType === "partial" && (
+                  <div>
+                    <label className="label">Monto del abono *</label>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={paidAmount}
+                      onChange={(e) => setPaidAmount(e.target.value)}
+                      className="input"
+                      placeholder="0.00"
+                    />
+                    {remaining != null && Number(paidAmount) > 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Saldo pendiente: <span className="font-semibold">${fmt(remaining)}</span> — se registrará como deuda
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {paymentType === "full" && (
+                  <div>
+                    <label className="label">Monto</label>
+                    <input
+                      type="number"
+                      value={paidAmount}
+                      readOnly
+                      className="input bg-gray-50 text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                )}
+
+                {isTransfer && (
+                  <div>
+                    <label className="label">Referencia / folio</label>
+                    <input
+                      type="text"
+                      value={referenceCode}
+                      onChange={(e) => setReferenceCode(e.target.value)}
+                      className="input"
+                      placeholder="Núm. de transferencia..."
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {paymentType === "none" && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-xl px-3 py-2">
+                La membresía quedará activa pero el monto total se registrará como deuda pendiente.
+              </p>
+            )}
+          </div>
 
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={autoRenew} onChange={(e) => setAutoRenew(e.target.checked)} className="w-4 h-4 accent-brand-600" />
