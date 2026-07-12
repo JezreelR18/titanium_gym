@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trainingService } from "../../services/trainingService";
 import { memberService } from "../../services/memberService";
-import { Plus, Pencil, Dumbbell, Search, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { Plus, Pencil, Dumbbell, Search, X, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import toast from "react-hot-toast";
 import ExerciseModal from "./ExerciseModal";
@@ -268,6 +269,134 @@ function AssignRoutineModal({ routine, onClose }) {
   );
 }
 
+// ── Muscle Groups Tab ──────────────────────────────────────────
+function MuscleGroupsTab() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canManage = ["propietario", "administrador"].includes(user?.role?.name);
+
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName]   = useState("");
+  const [editDesc, setEditDesc]   = useState("");
+  const [newName, setNewName]     = useState("");
+  const [newDesc, setNewDesc]     = useState("");
+  const [creating, setCreating]   = useState(false);
+
+  const { data: groups = [], isLoading } = useQuery({
+    queryKey: ["muscle-groups"],
+    queryFn: trainingService.getMuscleGroups,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () => trainingService.createMuscleGroup({ name: newName.trim(), description: newDesc.trim() || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["muscle-groups"] });
+      toast.success("¡Grupo muscular creado!");
+      setNewName(""); setNewDesc(""); setCreating(false);
+    },
+    onError: (err) => toast.error(err.response?.data?.detail ?? "Error"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (id) => trainingService.updateMuscleGroup(id, { name: editName.trim(), description: editDesc.trim() || null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["muscle-groups"] });
+      toast.success("Grupo actualizado");
+      setEditingId(null);
+    },
+    onError: (err) => toast.error(err.response?.data?.detail ?? "Error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: trainingService.deleteMuscleGroup,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["muscle-groups"] });
+      toast.success("Grupo eliminado");
+    },
+    onError: (err) => toast.error(err.response?.data?.detail ?? "No se puede eliminar"),
+  });
+
+  const startEdit = (g) => { setEditingId(g.id); setEditName(g.name); setEditDesc(g.description ?? ""); };
+
+  return (
+    <div className="max-w-xl">
+      <div className="flex items-center justify-between mb-5">
+        <p className="text-sm text-gray-500">{groups.length} grupos musculares</p>
+        {canManage && (
+          <button onClick={() => setCreating(true)} className="btn-primary flex items-center gap-2 text-sm">
+            <Plus size={15} /> Nuevo grupo
+          </button>
+        )}
+      </div>
+
+      {canManage && creating && (
+        <div className="card mb-4 border-brand-200">
+          <p className="text-sm font-semibold mb-3 text-gray-800">Nuevo grupo muscular</p>
+          <div className="space-y-3">
+            <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
+              className="input" placeholder="Nombre (Ej: Pecho, Espalda, Piernas...)" />
+            <input value={newDesc} onChange={(e) => setNewDesc(e.target.value)}
+              className="input" placeholder="Descripción (opcional)" />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setCreating(false)} className="btn-secondary text-sm">Cancelar</button>
+              <button onClick={() => createMutation.mutate()}
+                disabled={!newName.trim() || createMutation.isPending} className="btn-primary text-sm">
+                {createMutation.isPending ? "Guardando..." : "Crear"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-sm text-gray-400 text-center py-8">Cargando...</p>
+      ) : groups.length === 0 ? (
+        <div className="text-center py-10">
+          <Dumbbell size={40} className="text-gray-200 mx-auto mb-3" />
+          <p className="text-sm text-gray-500">No hay grupos musculares aún.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {groups.map((g) =>
+            editingId === g.id ? (
+              <div key={g.id} className="card border-brand-300 space-y-2">
+                <input autoFocus value={editName} onChange={(e) => setEditName(e.target.value)} className="input" />
+                <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
+                  className="input" placeholder="Descripción (opcional)" />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setEditingId(null)} className="btn-secondary text-sm">Cancelar</button>
+                  <button onClick={() => updateMutation.mutate(g.id)}
+                    disabled={!editName.trim() || updateMutation.isPending} className="btn-primary text-sm">
+                    {updateMutation.isPending ? "Guardando..." : "Guardar"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div key={g.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-gray-200 transition-colors">
+                <div>
+                  <p className="font-medium text-gray-800">{g.name}</p>
+                  {g.description && <p className="text-xs text-gray-400 mt-0.5">{g.description}</p>}
+                </div>
+                {canManage && (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => startEdit(g)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={() => confirm(`¿Eliminar "${g.name}"?`) && deleteMutation.mutate(g.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────
 export default function TrainingPage() {
   const [tab, setTab] = useState("routines");
@@ -283,8 +412,9 @@ export default function TrainingPage() {
 
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
         {[
-          { key: "routines",  label: "Rutinas" },
-          { key: "exercises", label: "Ejercicios" },
+          { key: "routines",       label: "Rutinas" },
+          { key: "exercises",      label: "Ejercicios" },
+          { key: "muscle-groups",  label: "Grupos musculares" },
         ].map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
             className={clsx("px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
@@ -295,8 +425,9 @@ export default function TrainingPage() {
       </div>
 
       <div className="card">
-        {tab === "routines"  && <RoutinesTab />}
-        {tab === "exercises" && <ExercisesTab />}
+        {tab === "routines"      && <RoutinesTab />}
+        {tab === "exercises"     && <ExercisesTab />}
+        {tab === "muscle-groups" && <MuscleGroupsTab />}
       </div>
     </div>
   );

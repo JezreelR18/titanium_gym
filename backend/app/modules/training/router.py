@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from typing import Optional
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_owner
 from app.modules.training.models import MuscleGroup, Exercise, Routine, RoutineExercise, MemberRoutine
 from app.shared.enums import DifficultyLevel, RoutineStatus
 
@@ -18,7 +18,18 @@ router = APIRouter()
 class MuscleGroupResponse(BaseModel):
     id: uuid.UUID
     name: str
+    description: Optional[str] = None
     model_config = {"from_attributes": True}
+
+
+class MuscleGroupCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class MuscleGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class ExerciseCreate(BaseModel):
@@ -141,6 +152,47 @@ class MemberRoutineUpdate(BaseModel):
 async def list_muscle_groups(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     result = await db.execute(select(MuscleGroup).order_by(MuscleGroup.name))
     return result.scalars().all()
+
+
+@router.post("/muscle-groups", response_model=MuscleGroupResponse, status_code=status.HTTP_201_CREATED)
+async def create_muscle_group(data: MuscleGroupCreate, db: AsyncSession = Depends(get_db), current_user=Depends(require_owner)):
+    existing = await db.execute(select(MuscleGroup).where(MuscleGroup.name == data.name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Ya existe un grupo muscular con ese nombre")
+    group = MuscleGroup(**data.model_dump())
+    db.add(group)
+    await db.commit()
+    result = await db.execute(select(MuscleGroup).where(MuscleGroup.id == group.id))
+    return result.scalar_one()
+
+
+@router.put("/muscle-groups/{group_id}", response_model=MuscleGroupResponse)
+async def update_muscle_group(group_id: uuid.UUID, data: MuscleGroupUpdate, db: AsyncSession = Depends(get_db), _=Depends(require_owner)):
+    result = await db.execute(select(MuscleGroup).where(MuscleGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Grupo muscular no encontrado")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(group, field, value)
+    await db.commit()
+    result = await db.execute(select(MuscleGroup).where(MuscleGroup.id == group.id))
+    return result.scalar_one()
+
+
+@router.delete("/muscle-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_muscle_group(group_id: uuid.UUID, db: AsyncSession = Depends(get_db), _=Depends(require_owner)):
+    result = await db.execute(select(MuscleGroup).where(MuscleGroup.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Grupo muscular no encontrado")
+    from sqlalchemy import func
+    count_q = await db.execute(
+        select(func.count()).select_from(Exercise).where(Exercise.muscle_group_id == group_id)
+    )
+    if count_q.scalar_one() > 0:
+        raise HTTPException(status_code=409, detail="No se puede eliminar: hay ejercicios asignados a este grupo")
+    await db.delete(group)
+    await db.commit()
 
 
 # ── Exercises ──────────────────────────────────────────────────

@@ -2,6 +2,9 @@ import api from "./api";
 
 export const trainingService = {
   getMuscleGroups: () => api.get("/training/muscle-groups").then((r) => r.data),
+  createMuscleGroup: (data) => api.post("/training/muscle-groups", data).then((r) => r.data),
+  updateMuscleGroup: (id, data) => api.put(`/training/muscle-groups/${id}`, data).then((r) => r.data),
+  deleteMuscleGroup: (id) => api.delete(`/training/muscle-groups/${id}`),
 
   getExercises: () => api.get("/training/exercises").then((r) => r.data),
   createExercise: (data) => api.post("/training/exercises", data).then((r) => r.data),
