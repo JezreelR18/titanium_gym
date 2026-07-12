@@ -256,12 +256,16 @@ async def get_summary(
     # ── Active lockers ──
     active_lockers = 0
     if _HAS_LOCKERS:
-        r = await db.execute(
-            select(func.count(LockerRental.id)).where(
-                LockerRental.status == LockerRentalStatus.active
+        try:
+            r = await db.execute(
+                select(func.count(LockerRental.id)).where(
+                    LockerRental.status == LockerRentalStatus.active
+                )
             )
-        )
-        active_lockers = r.scalar_one()
+            active_lockers = r.scalar_one()
+        except Exception:
+            await db.rollback()
+            active_lockers = 0
 
     # ── Birthdays this week ──
     r = await db.execute(
