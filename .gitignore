@@ -1,17 +1,21 @@
 # Python
 backend/venv/
-backend/__pycache__/
-backend/**/__pycache__/
-backend/**/*.pyc
-backend/.env
+__pycache__/
+*.pyc
 backend/*.egg-info/
 backend/.pytest_cache/
+
+# Secretos — NUNCA versionar
+.env
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.local
 
 # Node
 frontend/node_modules/
 frontend/dist/
-frontend/.env
-frontend/.env.local
 
 # OS
 .DS_Store
