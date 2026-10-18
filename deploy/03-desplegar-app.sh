@@ -42,6 +42,11 @@ echo "==> 2/6 Entorno virtual y dependencias"
 sudo -u "$APP_USER" bash -c "
   set -e
   cd '$APP_DIR/backend'
+  # Un venv heredado de otra máquina trae shebangs rotos: recrearlo.
+  if [ -d venv ] && ! ./venv/bin/python -c 'import sys' 2>/dev/null; then
+    echo '    venv inválido, recreando'
+    rm -rf venv
+  fi
   [ -d venv ] || python3 -m venv venv
   ./venv/bin/pip install --quiet --upgrade pip wheel
   ./venv/bin/pip install --quiet -r requirements.txt
