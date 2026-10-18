@@ -93,7 +93,9 @@ RestartSec=5
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ProtectHome=true
+# read-only y no 'true': asyncpg consulta ~/.postgresql/ al conectar y un
+# home inaccesible le devuelve EACCES en vez de ENOENT, lo que rompe la conexión.
+ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target
