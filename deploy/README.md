@@ -1,5 +1,22 @@
 # Migración a Google Cloud — Titanium Gym
 
+## Estado: desplegado el 18 de octubre de 2026
+
+| | |
+|---|---|
+| VM | `titanium-gym` · e2-micro · `us-central1-a` · Ubuntu 24.04 · disco pd-standard 30 GB |
+| IP estática | `136.80.225.174` |
+| API | https://136-80-225-174.sslip.io/api · [health](https://136-80-225-174.sslip.io/api/health) · [docs](https://136-80-225-174.sslip.io/api/docs) |
+| Base de datos | PostgreSQL 16 local · 38 tablas · 10 migraciones aplicadas |
+| Respaldos | diarios 03:00 UTC → `gs://careful-striker-451805-s1-titanium-backups` (30 días) |
+| Presupuesto | `Titanium Gym` · $200 MXN/mes · alertas al 50 %, 90 % y 100 % |
+
+Los pasos 0c a 4 de esta guía ya están ejecutados. Se conservan como referencia
+para reconstruir el entorno desde cero si hiciera falta.
+
+---
+
+
 Guía para mover la API y la base de datos a una VM **e2-micro del nivel "Always Free"** de Google Cloud.
 El frontend se queda en Netlify (gratis, no hay nada que cambiar ahí salvo una variable).
 
@@ -182,7 +199,7 @@ Crea el bucket, instala el cron diario de las 03:00 y hace un respaldo de prueba
 En tu Mac, edita `frontend/.env.production`:
 
 ```
-VITE_API_URL=https://TU-DOMINIO.sslip.io/api
+VITE_API_URL=https://136-80-225-174.sslip.io/api
 ```
 
 ```bash
